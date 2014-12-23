@@ -8,51 +8,35 @@
 import sys
 import random
 
-import Image
+#import Image
 from myutil import save_or_show
-#import cv2
-
-def add_noise(img_orig, noise_rate):
-    width, height = img.size
-    S = width * height
-    n = int(S * noise_rate + 0.5)
-
-    to_toggle = [False] * S
-    for i in range(height): to_toggle[i] = True
-    random.shuffle(to_toggle)
-
-    pix = img.load()
-    for y in range(height):
-        for x in range(width):
-            i = y * width + x
-            if to_toggle[i]:
-                pix[x, y] = 255 - pix[x, y]
-
-    return img
+import cv2
+import numpy as np
+   
+def add_noise0(img, noise_rate):
+    height, width = img.shape
     
-def add_noise0(img_orig, noise_rate):
-    width, height = img.size
-    pix = img.load()
     for y in range(height):
         for x in range(width):
             if random.random() < noise_rate:
-                pix[x, y] = 255 - pix[x, y]
+                img[x, y] = abs(255 - img[x, y])
     return img
 
-if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        print "usage: python %s <orig> <noise-rate> [<output>]" % sys.argv[0]
-        sys.exit()
-    
-    infile = sys.argv[1]
-    noise_rate = float(sys.argv[2]) / 100
-    if len(sys.argv) == 4:
-        outfile = sys.argv[3]
-    else:
-        outfile = None
+def bin(img):
 
-    img = Image.open(infile)
-    img2 = add_noise(img, noise_rate)
-    save_or_show(img2, outfile)
-    #img2.save("noise.png")
+    mask = img > 122
+    im_bi = np.zeros((img.shape[0],img.shape[1]),np.uint8)
+    im_bi[mask] = 255
+    return im_bi
+
+if __name__ == "__main__":
+
+    infile = "img.jpg"
+
+    noise_rate = float(sys.argv[1]) / 100
+    #noise_rate = 5.0 / 100
+    img = cv2.imread(infile, 0)
+    img = bin(img)
+    img2 = add_noise0(img, noise_rate)
+    cv2.imwrite("noise.png", img2)
 
