@@ -1,95 +1,66 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-#
-# remove_noise.py - ノイズを除去する
-#
-# usage: python remove_noise.py <input> [<output>]
-#
 import sys
 import os
  
-#import Image # PIL
-#from myutil import save_or_show
+from myutil import save_or_show
 import cv2
-import numpy as np
+import numpy
  
-H = 0.1
-BETA = 0.1
-ETA = 0.1
-EPS = 1e-5
- 
-def E(xs, ys, width, height):
-    S = width * height
- 
-    s0 = s1 = s2 = 0
- 
-    for i in range(S):
-        s0 += xs[i]
-        s2 += xs[i] * ys[i]
- 
-    for y in range(height-1):
-        for x in range(width-1):
-            i = y*width + x
-            s1 += xs[i] * xs[i+1] + xs[i] * xs[i+width]
- 
-    e = H * s0 - BETA * s1 - ETA * s2
-    return e
- 
+from graph_tool.all import *
  
 def remove_noise(img):
-    #width, height = img.size
     height, width = img.shape
+
+    # 面積
     S = width * height
  
-    #pix = img.load()
+    # グラフ生成
+    g = Graph()
+    capacity = g.new_edge_property("int")
+ 
+    for i in range(S):
+        v = g.add_vertex()
+
+    start = g.add_vertex()
+    goal = g.add_vertex()
+ 
     pix = img
-    xs = [0]*S
-    ys = [0]*S
+ 
     for x in range(width):
         for y in range(height):
             i = y*width + x
-            xs[i] = ys[i] = 1 if pix[x,y] > 0 else -1
+            # 各ピクセルにラベル付与
+            p = 1 if pix[x,y] == 255 else 0  # {0, 1}
  
-    def de(i):
-        s0 = xs[i]
+            e = g.add_edge(start, i)
+            capacity[e] = 5 + 4*p
  
-        s1 = 0
+            e = g.add_edge(i, goal)
+            capacity[e] = 5 + 4*(1-p)
+ 
+    for i in range(S):
         if i > 0:
-            s1 += xs[i] * xs[i-1]
+            e = g.add_edge(i, i-1)
+            capacity[e] = 3
         if i < S-1:
-            s1 += xs[i] * xs[i+1]
+            e = g.add_edge(i, i+1)
+            capacity[e] = 3
         if i >= width:
-            s1 += xs[i] * xs[i-width]
+            e = g.add_edge(i, i-width)
+            capacity[e] = 3
         if i < S-width:
-            s1 += xs[i] * xs[i+width]
+            e = g.add_edge(i, i+width)
+            capacity[e] = 3
  
-        s2 = xs[i] * ys[i]
+    residual = push_relabel_max_flow(g, start, goal, capacity)
+    partition = min_st_cut(g, start, capacity, residual)
  
-        curr_e = H * s0 - BETA * s1 - ETA * s2
-        toggled_e = -curr_e
+    for i in range(S):
+        x = i % width
+        y = i / width
+        pix[x,y] = 255 if partition.a[i] else 0
  
-        return toggled_e < curr_e
- 
-    def reflect():
-        for i in range(S):
-            x = i % width
-            y = i / width
-            pix[x,y] = 255 if xs[i] == 1 else 0
- 
-    energy = E(xs, ys, width, height)
-    print 0, energy
- 
-    for j in range(10):
-        for i in range(S):
-            if de(i): xs[i] = -xs[i]
- 
-        new_energy = E(xs, ys, width, height)
-        print 1+j, new_energy
- 
-        if energy - new_energy < EPS: break
-        energy = new_energy
- 
-    reflect()
     return img
  
  
@@ -97,15 +68,10 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         print "usage: python %s <input> [<output>]" % sys.argv[0]
         sys.exit()
- 
+
     infile = sys.argv[1]
-    if len(sys.argv) == 3:
-        outfile = sys.argv[2]
-    else:
-        outfile = None
- 
     #img = Image.open(infile)
     img = cv2.imread(infile, 0)
+
     img2 = remove_noise(img)
-    #save_or_show(img2, outfile)
     cv2.imwrite("denoise.png", img2)
