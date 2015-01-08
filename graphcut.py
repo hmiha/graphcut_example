@@ -3,7 +3,7 @@
 import sys
 import os
  
-from myutil import save_or_show
+#from myutil import save_or_show
 import cv2
 import numpy
  
